@@ -3,36 +3,42 @@
 Immersive customer storefront + owner dashboard, built for Netlify.
 
 ## Included
-- 3D animated storefront with responsive premium UI
-- Product catalogue, categories, detail view, stock and cart
-- Checkout and order storage
+- 3D animated responsive storefront
+- Product catalogue, categories, details, stock and cart
+- Customer checkout and persistent orders
 - Reviews and ratings
-- Owner dashboard to add, edit and remove products and view orders
+- Owner dashboard for add/edit/remove products and order viewing
+- Direct owner product-image uploads using Netlify Blobs
 - PDF invoice generation, download and supported-device sharing
-- Payment method selector for COD, Stripe, Razorpay and PayPal
-- Netlify Database + Netlify Functions architecture
+- COD + Stripe/Razorpay/PayPal-ready payment selection
+- Privacy, terms, shipping and returns templates
+- Netlify Database + Functions + Blobs architecture
 
 ## Netlify setup
-1. Connect this GitHub repository to Netlify.
-2. Build command: `npm run build`
-3. Publish directory: `dist`
-4. Add a secret environment variable named `OWNER_KEY` with a strong private value.
-5. Netlify Database is provisioned from the migration in `netlify/database/migrations` when supported/enabled for the site.
+A Netlify project named `jenet-3d-store` has been created. Connect this GitHub repository to that project in Netlify's dashboard, then deploy from `main`.
 
-Optional payment credentials can be stored as Netlify environment variables:
+Build settings are already in `netlify.toml`:
+- Build command: `npm run build`
+- Publish directory: `dist`
+- Functions: `netlify/functions`
+
+Add a secret site environment variable:
+- `OWNER_KEY` — strong private password for the owner dashboard.
+
+Netlify Database uses the migration in `netlify/database/migrations/0001_init.sql`. Product image uploads use the site-wide `jenet-product-images` Blob store.
+
+## Payments
+Optional secret environment variables:
 - `STRIPE_SECRET_KEY`
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
 - `PAYPAL_CLIENT_ID`
 - `PAYPAL_CLIENT_SECRET`
 
-The storefront intentionally does **not** hard-code payment secrets. The current checkout records online-payment orders but live charge capture must be connected to each provider's verified checkout/webhook flow before accepting real online payments.
+The UI and order model support these payment choices, but live online charge capture is intentionally not treated as complete until each provider's secure hosted checkout/signature verification/webhooks are connected and tested. COD works as an order-payment selection without gateway credentials.
 
 ## Product photos
-The repository did not contain the previously mentioned product photos. Use the Owner dashboard to add real image URLs, or add image upload/storage in a future iteration.
+The GitHub repository did not contain the previously mentioned product photos. The owner dashboard now supports direct image upload after Netlify deploy, so real photos can be added without another code change.
 
-## Owner access
-The owner dashboard is opened from the diamond icon in the top navigation. It validates the key server-side against `OWNER_KEY`.
-
-## Development
-`npm install` then use Netlify's local tooling for Functions/Database development.
+## Policies
+The included Privacy, Terms, Shipping and Returns text is a starter template and must be reviewed for the actual business, products, jurisdiction and refund/shipping rules before launch.
