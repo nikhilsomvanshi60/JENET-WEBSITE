@@ -1,4 +1,5 @@
 import { getDatabase } from "@netlify/database";
+import { getStore } from "@netlify/blobs";
 import type { Context } from "@netlify/functions";
 
 const json = (data: unknown, status = 200) =>
@@ -20,6 +21,18 @@ export default async (req: Request, _context: Context) => {
   const resource = url.searchParams.get("resource") || "products";
 
   try {
+    if (req.method === "GET" && resource === "image") {
+      const key = url.searchParams.get("key") || "";
+      if (!key || !key.startsWith("products/")) return new Response("Not found", { status: 404 });
+      const store = getStore({ name: "jenet-product-images", consistency: "strong" });
+      const entry = await store.getWithMetadata(key, { type: "arrayBuffer", consistency: "strong" });
+      if (!entry?.data) return new Response("Not found", { status: 404 });
+      const type = String(entry.metadata?.contentType || "image/jpeg");
+      return new Response(entry.data, {
+        headers: { "content-type": type, "cache-control": "public, max-age=31536000, immutable" }
+      });
+    }
+
     if (req.method === "GET" && resource === "products") {
       const products = await db.sql`
         SELECT p.*,
@@ -52,6 +65,20 @@ export default async (req: Request, _context: Context) => {
         SELECT * FROM orders ORDER BY created_at DESC LIMIT 100
       `;
       return json({ orders });
+    }
+
+    if (req.method === "POST" && resource === "upload") {
+      if (!ownerAllowed(req)) return json({ error: "Unauthorized" }, 401);
+      const form = await req.formData();
+      const file = form.get("file");
+      if (!(file instanceof File)) return json({ error: "Image file required" }, 400);
+      if (!file.type.startsWith("image/")) return json({ error: "Only image uploads are allowed" }, 415);
+      if (file.size > 8 * 1024 * 1024) return json({ error: "Image must be under 8 MB" }, 413);
+      const ext = (file.name.split(".").pop() || "jpg").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      const key = `products/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+      const store = getStore({ name: "jenet-product-images", consistency: "strong" });
+      await store.set(key, file, { metadata: { contentType: file.type, originalName: file.name } });
+      return json({ ok: true, imageUrl: `/api/store?resource=image&key=${encodeURIComponent(key)}` }, 201);
     }
 
     if (req.method === "POST" && resource === "review") {
@@ -133,7 +160,7 @@ export default async (req: Request, _context: Context) => {
           payment: paymentMethod === "cod"
             ? { status: "pending", message: "Cash on Delivery selected." }
             : gatewayConfigured
-              ? { status: "configured", message: "Gateway credentials detected. Connect provider checkout flow before going live." }
+              ? { status: "configured", message: "Gateway credentials detected. Provider checkout/webhook connection is still required before live charging." }
               : { status: "configuration_required", message: "Add this gateway's merchant keys in Netlify environment variables." }
         }, 201);
       } catch (e) {
